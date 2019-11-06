@@ -1,16 +1,20 @@
 function approve!(repo::GitHub.Repo,
                   pr::GitHub.PullRequest,
                   pr_head_commit_sha_to_approve::String;
-                  auth::GitHub.Authorization)
-    whoami = username(auth)
+                  auth::GitHub.Authorization,
+                  body::String="",
+                  whoami)
     if pr.user.login == whoami
     else
         repo_full_name = full_name(repo)
         pr_number = number(pr)
         endpoint = "/repos/$(repo_full_name)/pulls/$(pr_number)/reviews"
-        approving_review_body = string("<!---",
-                                       "approved_pr_head_commit_sha=\"$(pr_head_commit_sha_to_approve)\"",
-                                       "--->")
+        approving_review_body = """
+                $body
+                <!---
+                approved_pr_head_commit_sha=\"$(pr_head_commit_sha_to_approve)\"
+                --->
+                """
         myparams = Dict("event" => "APPROVE",
                         "body" => approving_review_body)
         GitHub.gh_post_json(GitHub.DEFAULT_API,
@@ -150,12 +154,14 @@ function merge!(registry_repo::GitHub.Repo,
                 pr::GitHub.PullRequest,
                 approved_pr_head_sha::AbstractString;
                 auth::GitHub.Authorization)
+    pr = wait_pr_compute_mergeability(registry_repo, pr; auth = auth)
+    _approved_pr_head_sha = convert(String, strip(approved_pr_head_sha))::String
     pr_number = number(pr)
-    _approved_pr_head_sha = convert(String, approved_pr_head_sha)::String
     @info("Attempting to squash-merge pull request #$(pr_number)")
     @debug("sha = $(_approved_pr_head_sha)")
+    @debug("pr.mergeable = $(pr.mergeable)")
+    params = Dict("sha" => _approved_pr_head_sha, "merge_method" => "squash")
     try
-        params = Dict("sha" => _approved_pr_head_sha, "merge_method" => "squash")
         GitHub.merge_pull_request(registry_repo,
                                   pr_number;
                                   auth=auth,
@@ -165,14 +171,26 @@ function merge!(registry_repo::GitHub.Repo,
         Base.show_backtrace(stderr, catch_backtrace())
         println(stderr)
     end
-#     try
-#         delete_merged_branch!(registry_repo, pr; auth=auth)
-#     catch ex
-#         showerror(stderr, ex)
-#         Base.show_backtrace(stderr, catch_backtrace())
-#         println(stderr)
-#     end
+    try
+        delete_merged_branch!(registry_repo, pr; auth=auth)
+    catch
+    end
     return nothing
+end
+
+function wait_pr_compute_mergeability(repo::GitHub.Repo,
+                                      pr::GitHub.PullRequest;
+                                      auth::GitHub.Authorization)
+    sleep(5)
+    max_tries = 10
+    num_tries = 0
+    pr = GitHub.pull_request(repo, pr.number; auth = auth)
+    while !(pr.mergeable isa Bool) && num_tries <= max_tries
+        num_tries = num_tries + 1
+        sleep(5)
+        pr = GitHub.pull_request(repo, pr.number; auth = auth)
+    end
+    return pr
 end
 
 num_changed_files(pull_request::GitHub.PullRequest) = pull_request.changed_files

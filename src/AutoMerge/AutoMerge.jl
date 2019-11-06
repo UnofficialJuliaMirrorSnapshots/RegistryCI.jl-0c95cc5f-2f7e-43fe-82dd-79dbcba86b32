@@ -6,11 +6,15 @@ import HTTP
 import LibGit2
 import Pkg
 import TimeZones
+import JSON
 
 import ..RegistryCI
 
+include("assert.jl")
+
 include("types.jl")
 
+include("ciservice.jl")
 include("public.jl")
 
 include("api_rate_limiting.jl")

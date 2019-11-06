@@ -1,13 +1,13 @@
-function travis_pull_request_build(::NewVersion,
-                                   pr::GitHub.PullRequest,
-                                   current_pr_head_commit_sha::String,
-                                   registry::GitHub.Repo;
-                                   auth::GitHub.Authorization,
-                                   authorized_authors::Vector{String},
-                                   registry_head::String,
-                                   registry_master::String,
-                                   suggest_onepointzero::Bool,
-                                   whoami::String)
+function pull_request_build(::NewVersion,
+                            pr::GitHub.PullRequest,
+                            current_pr_head_commit_sha::String,
+                            registry::GitHub.Repo;
+                            auth::GitHub.Authorization,
+                            authorized_authors::Vector{String},
+                            registry_head::String,
+                            registry_master::String,
+                            suggest_onepointzero::Bool,
+                            whoami::String)
     # first check if authorized author - if not, then quit
     # then check rules 1-3. if fail, post comment.
     # then check rules 4-5. if fail, post comment.
@@ -56,9 +56,8 @@ function travis_pull_request_build(::NewVersion,
                                                              suggest_onepointzero,
                                                              version)
                     my_retry(() -> delete_all_of_my_reviews!(registry, pr; auth = auth, whoami = whoami))
-                    my_retry(() -> approve!(registry, pr, current_pr_head_commit_sha; auth = auth))
+                    my_retry(() -> approve!(registry, pr, current_pr_head_commit_sha; auth = auth, body = newv_commenttextpass, whoami = whoami))
                     my_retry(() -> GitHub.create_status(registry, current_pr_head_commit_sha; auth=auth, params=Dict("state" => "success", "context" => "automerge/new-version", "description" => "$(current_pr_head_commit_sha)")))
-                    my_retry(() -> post_comment!(registry, pr, newv_commenttextpass; auth = auth))
                     return nothing
                 else
                     newv_commenttext4and5 = comment_text_fail(NewVersion(),

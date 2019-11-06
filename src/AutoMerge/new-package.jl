@@ -1,13 +1,13 @@
-function travis_pull_request_build(::NewPackage,
-                                   pr::GitHub.PullRequest,
-                                   current_pr_head_commit_sha::String,
-                                   registry::GitHub.Repo;
-                                   auth::GitHub.Authorization,
-                                   authorized_authors::Vector{String},
-                                   registry_head::String,
-                                   registry_master::String,
-                                   suggest_onepointzero::Bool,
-                                   whoami::String)
+function pull_request_build(::NewPackage,
+                            pr::GitHub.PullRequest,
+                            current_pr_head_commit_sha::String,
+                            registry::GitHub.Repo;
+                            auth::GitHub.Authorization,
+                            authorized_authors::Vector{String},
+                            registry_head::String,
+                            registry_master::String,
+                            suggest_onepointzero::Bool,
+                            whoami::String)
     # first check if the PR is open, and the author is authorized - if not, then quit
     # then, delete ALL reviews by me
     # then check rules 1-5. if fail, post comment.
@@ -53,9 +53,8 @@ function travis_pull_request_build(::NewPackage,
                                                              suggest_onepointzero,
                                                              version)
                     my_retry(() -> delete_all_of_my_reviews!(registry, pr; auth = auth, whoami = whoami))
-                    my_retry(() -> approve!(registry, pr, current_pr_head_commit_sha; auth = auth))
+                    my_retry(() -> approve!(registry, pr, current_pr_head_commit_sha; auth = auth, body = newp_commenttextpass, whoami=whoami))
                     my_retry(() -> GitHub.create_status(registry, current_pr_head_commit_sha; auth=auth, params=Dict("state" => "success", "context" => "automerge/new-package", "description" => "$(current_pr_head_commit_sha)")))
-                    my_retry(() -> post_comment!(registry, pr, newp_commenttextpass; auth = auth))
                     return nothing
                 else
                     newp_commenttext6and7 = comment_text_fail(NewPackage(),
